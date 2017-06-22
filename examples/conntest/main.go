@@ -26,7 +26,7 @@ import (
 	"syscall"
 	"testing"
 
-	"gopkg.in/rana/ora.v4/examples/connect"
+	"github.com/tianlin/ora/examples/connect"
 )
 
 var fWait = flag.Bool("wait", false, "wait for USR1 signal?")

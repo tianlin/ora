@@ -16,7 +16,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"gopkg.in/rana/ora.v4"
+	"github.com/tianlin/ora"
 )
 
 func dbName() string {

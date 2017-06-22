@@ -280,6 +280,8 @@ func (lr *lobReader) Read(p []byte) (n int, err error) {
 		//Log.Infof("Reader OCILobOpen %p", def.ociLobLocator)
 		//fmt.Printf("lobOpen(%p loc=%p)\n", lr, lr.ociLobLocator)
 		lr.Length, lr.csid, lr.csfrm, err = lobOpen(ses, ociLobLocator, C.OCI_LOB_READONLY)
+		lr.csid = C.ub2(atomic.LoadUint32(&csIDAl32UTF8))
+
 		lr.Unlock()
 		if err != nil {
 			return 0, err

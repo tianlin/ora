@@ -8,7 +8,7 @@ import (
 	"bytes"
 	"testing"
 
-	"gopkg.in/rana/ora.v4/date"
+	"github.com/tianlin/ora/date"
 )
 
 func TestDate(t *testing.T) {

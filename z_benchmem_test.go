@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/rana/ora.v4"
+	"github.com/tianlin/ora"
 )
 
 const (

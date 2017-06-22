@@ -25,8 +25,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/tianlin/ora"
 	"gopkg.in/errgo.v1"
-	"gopkg.in/rana/ora.v4"
 
 	"github.com/tgulacsi/go/dber"
 	"github.com/tgulacsi/go/orahlp"

@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"gopkg.in/rana/ora.v4"
+	"github.com/tianlin/ora"
 )
 
 func TestServer_OpenCloseSession(t *testing.T) {

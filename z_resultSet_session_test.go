@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"testing"
 
-	"gopkg.in/rana/ora.v4"
+	"github.com/tianlin/ora"
 )
 
 func Test_cursor1_session(t *testing.T) {

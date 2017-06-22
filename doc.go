@@ -12,7 +12,7 @@ Package ora implements an Oracle database driver.
 	import (
 		"database/sql"
 
-		_ "gopkg.in/rana/ora.v4"
+		_ "github.com/tianlin/ora"
 	)
 
 	func main() {
@@ -30,7 +30,7 @@ Package ora implements an Oracle database driver.
 Call stored procedure with OUT parameters:
 
 	import (
-		"gopkg.in/rana/ora.v4"
+		"github.com/tianlin/ora"
 	)
 
 	func main() {
@@ -111,7 +111,7 @@ in `$PKG_CONFIG_PATH` or a system folder, such as
 The ora package has no external Go dependencies and is available on GitHub and
 gopkg.in:
 
-	go get gopkg.in/rana/ora.v4
+	go get github.com/tianlin/ora
 
 Data Types
 
@@ -302,7 +302,7 @@ An example of using the ora package directly:
 
 	import (
 		"fmt"
-		"gopkg.in/rana/ora.v4"
+		"github.com/tianlin/ora"
 	)
 
 	func main() {
@@ -1047,8 +1047,8 @@ ora driver methods. For example:
 To use the standard Go log package:
 
 	import (
-		"gopkg.in/rana/ora.v4"
-		"gopkg.in/rana/ora.v4/lg"
+		"github.com/tianlin/ora"
+		"github.com/tianlin/ora/lg"
 	)
 
 	func main() {
@@ -1079,8 +1079,8 @@ To use the glog package:
 
 	import (
 		"flag"
-		"gopkg.in/rana/ora.v4"
-		"gopkg.in/rana/ora.v4/glg"
+		"github.com/tianlin/ora"
+		"github.com/tianlin/ora/glg"
 	)
 
 	func main() {
@@ -1113,8 +1113,8 @@ which produces a sample log of:
 To use the log15 package:
 
 	import (
-		"gopkg.in/rana/ora.v4"
-		"gopkg.in/rana/ora.v4/lg15"
+		"github.com/tianlin/ora"
+		"github.com/tianlin/ora/lg15"
 	)
 	func main() {
 		// use the optional log15 package for ora logging
@@ -1240,4 +1240,4 @@ Use of this source code is governed by The MIT License
 found in the accompanying LICENSE file.
 
 */
-package ora // import "gopkg.in/rana/ora.v4"
+package ora // import "github.com/tianlin/ora"

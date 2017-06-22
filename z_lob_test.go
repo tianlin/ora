@@ -16,7 +16,7 @@ import (
 	"sync"
 	"testing"
 
-	ora "gopkg.in/rana/ora.v4"
+	ora "github.com/tianlin/ora"
 )
 
 func TestLobSelect(t *testing.T) {

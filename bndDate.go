@@ -14,7 +14,7 @@ import "C"
 import (
 	"unsafe"
 
-	"gopkg.in/rana/ora.v4/date"
+	"github.com/tianlin/ora/date"
 )
 
 type bndDate struct {

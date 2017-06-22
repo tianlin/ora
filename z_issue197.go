@@ -10,7 +10,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"gopkg.in/rana/ora.v4"
+	"github.com/tianlin/ora"
 )
 
 const insellpid = "0000000048A16C23433210AC068C"

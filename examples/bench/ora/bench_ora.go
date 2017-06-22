@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	_ "gopkg.in/rana/ora.v4"
+	_ "github.com/tianlin/ora"
 )
 
 var (

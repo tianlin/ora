@@ -116,10 +116,10 @@ type LogDrvCfg struct {
 	//
 	// The default implementation uses the standard lib's log package.
 	//
-	// For a glog-based implementation, see gopkg.in/rana/ora.v4/glg.
+	// For a glog-based implementation, see github.com/tianlin/ora/glg.
 	// LogDrvCfg.Logger = glg.Log
 	//
-	// For an gopkg.in/inconshreveable/log15.v2-based, see gopkg.in/rana/ora.v4/lg15.
+	// For an gopkg.in/inconshreveable/log15.v2-based, see github.com/tianlin/ora/lg15.
 	// LogDrvCfg.Logger = lg15.Log
 	Logger Logger
 

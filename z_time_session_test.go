@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	ora "gopkg.in/rana/ora.v4"
+	ora "github.com/tianlin/ora"
 )
 
 var _T_timeCols = []string{
