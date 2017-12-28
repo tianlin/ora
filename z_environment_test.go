@@ -5,10 +5,39 @@
 package ora_test
 
 import (
+	"database/sql"
+	"runtime"
 	"testing"
+	"time"
 
 	"github.com/tianlin/ora"
 )
+
+func TestOpenBadMemoryIssue207(t *testing.T) {
+	var mem runtime.MemStats
+	runtime.GC()
+	runtime.ReadMemStats(&mem)
+	t.Log("Allocated 0:", mem.Alloc)
+	badConStr := "bad/bad@(DESCRIPTION=(ADDRESS_LIST=(ADDRESS=(PROTOCOL=TCP)(HOST=oracle.gthomas.eu)(PORT=49161)))(CONNECT_DATA=(sid=x)))"
+	zero := mem.Alloc
+	for i := 0; i < 100; i++ {
+		db, err := sql.Open(ora.Name, badConStr)
+		if err != nil {
+			t.Fatalf("bad connection string %q didn't produce error!", badConStr)
+		}
+		db.Ping()
+		db.Close()
+		runtime.GC()
+		runtime.ReadMemStats(&mem)
+		t.Logf("Allocated %d: %d", i+1, mem.Alloc)
+		time.Sleep(10 * time.Millisecond)
+	}
+	d := mem.Alloc - zero
+	t.Logf("atlast: %d", d)
+	if d > 1<<15 {
+		t.Errorf("Consumed more than 32KiB of memory: %d", d)
+	}
+}
 
 func TestEnv_OpenClose(t *testing.T) {
 	t.Parallel()

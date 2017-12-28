@@ -83,18 +83,24 @@ type Stmt struct {
 // Cfg returns the Stmt's StmtCfg, or it's Ses's, if not set.
 // If the env is the PkgSqlEnv, that will override StmtCfg!
 func (stmt *Stmt) Cfg() StmtCfg {
-	c := stmt.cfg.Load()
-	var cfg StmtCfg
-	if c != nil {
-		cfg = c.(StmtCfg)
+	cfg := stmt.SelfCfg()
+	if !cfg.IsZero() {
+		return cfg
 	}
 	if env := stmt.Env(); env.isPkgEnv {
-		cfg = env.Cfg()
-	} else if cfg.IsZero() {
-		cfg = stmt.ses.Cfg().StmtCfg
+		return env.Cfg()
 	}
-	return cfg
+	return stmt.ses.Cfg().StmtCfg
 }
+
+// returns the Stmt's StmtCfg only
+func (stmt *Stmt) SelfCfg() StmtCfg {
+	if c := stmt.cfg.Load(); c != nil {
+		return c.(StmtCfg)
+	}
+	return StmtCfg{}
+}
+
 func (stmt *Stmt) SetCfg(cfg StmtCfg) {
 	stmt.cfg.Store(cfg)
 }
@@ -150,28 +156,10 @@ func (stmt *Stmt) close() (err error) {
 			stmt.logF(true, "PANIC %v", err)
 			errs.PushBack(err)
 		}
-		// free ocistmt to release cursor on server
-		// OCIStmtRelease must be called with OCIStmtPrepare2
-		// See https://docs.oracle.com/database/121/LNOCI/oci09adv.htm#LNOCI16655
 		stmt.Lock()
 		env := stmt.Env()
 		ocistmt := stmt.ocistmt
-		r := C.OCIStmtRelease(
-			ocistmt,       // OCIStmt        *stmthp
-			env.ocierr,    // OCIError       *errhp,
-			nil,           // const OraText  *key
-			C.ub4(0),      // ub4 keylen
-			C.OCI_DEFAULT, // ub4 mode
-		)
-		stmt.Unlock()
-		if r == C.OCI_ERROR {
-			errs.PushBack(errE(env.ociError()))
-		}
 
-		C.OCIHandleFree(unsafe.Pointer(ocistmt), C.OCI_HTYPE_STMT)
-
-		stmt.SetCfg(StmtCfg{})
-		stmt.Lock()
 		stmt.stringPtrBufferSize = 0
 		stmt.env.Store((*Env)(nil))
 		stmt.ses = nil
@@ -185,6 +173,26 @@ func (stmt *Stmt) close() (err error) {
 		stmt.openRsets.clear()
 		_drv.stmtPool.Put(stmt)
 		stmt.Unlock()
+		stmt.SetCfg(StmtCfg{})
+
+		if ocistmt != nil {
+			// free ocistmt to release cursor on server
+			// OCIStmtRelease must be called with OCIStmtPrepare2
+			// See https://docs.oracle.com/database/121/LNOCI/oci09adv.htm#LNOCI16655
+			r := C.OCIStmtRelease(
+				ocistmt,       // OCIStmt        *stmthp
+				env.ocierr,    // OCIError       *errhp,
+				nil,           // const OraText  *key
+				C.ub4(0),      // ub4 keylen
+				C.OCI_DEFAULT, // ub4 mode
+			)
+			if r == C.OCI_ERROR {
+				errs.PushBack(errE(env.ociError()))
+				// Sometimes panics if free unconditionally - see #222.
+				// https://github.com/rana/ora/issues/222
+				C.OCIHandleFree(unsafe.Pointer(ocistmt), C.OCI_HTYPE_STMT)
+			}
+		}
 
 		multiErr := newMultiErrL(errs)
 		if multiErr != nil {
@@ -398,6 +406,7 @@ func (stmt *Stmt) qryC(ctx context.Context, params []interface{}) (rset *Rset, e
 	if cfg, ok := ctxStmtCfg(ctx); ok {
 		stmt.SetCfg(cfg)
 	}
+
 	err = stmt.checkClosed()
 	if err != nil {
 		return nil, errE(err)
@@ -407,6 +416,7 @@ func (stmt *Stmt) qryC(ctx context.Context, params []interface{}) (rset *Rset, e
 		return nil, errE(err)
 	}
 	err = stmt.setPrefetchSize() // set prefetch size
+
 	if err != nil {
 		return nil, errE(err)
 	}
@@ -813,7 +823,7 @@ func (stmt *Stmt) bind(params []interface{}, isAssocArray bool) (iterations uint
 		case *uint64:
 			bnd := stmt.getBnd(bndIdxUint64Ptr).(*bndUint64Ptr)
 			bnds[n] = bnd
-			err = bnd.bind(value, pos, stmt)
+			err = bnd.bind(value, nil, pos, stmt)
 			if err != nil {
 				return iterations, err
 			}
@@ -821,7 +831,7 @@ func (stmt *Stmt) bind(params []interface{}, isAssocArray bool) (iterations uint
 		case *uint32:
 			bnd := stmt.getBnd(bndIdxUint32Ptr).(*bndUint32Ptr)
 			bnds[n] = bnd
-			err = bnd.bind(value, pos, stmt)
+			err = bnd.bind(value, nil, pos, stmt)
 			if err != nil {
 				return iterations, err
 			}
@@ -829,7 +839,7 @@ func (stmt *Stmt) bind(params []interface{}, isAssocArray bool) (iterations uint
 		case *uint16:
 			bnd := stmt.getBnd(bndIdxUint16Ptr).(*bndUint16Ptr)
 			bnds[n] = bnd
-			err = bnd.bind(value, pos, stmt)
+			err = bnd.bind(value, nil, pos, stmt)
 			if err != nil {
 				return iterations, err
 			}
@@ -837,7 +847,7 @@ func (stmt *Stmt) bind(params []interface{}, isAssocArray bool) (iterations uint
 		case *uint8:
 			bnd := stmt.getBnd(bndIdxUint8Ptr).(*bndUint8Ptr)
 			bnds[n] = bnd
-			err = bnd.bind(value, pos, stmt)
+			err = bnd.bind(value, nil, pos, stmt)
 			if err != nil {
 				return iterations, err
 			}

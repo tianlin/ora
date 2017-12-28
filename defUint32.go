@@ -57,7 +57,7 @@ func (def *defUint32) value(offset int) (value interface{}, err error) {
 }
 
 func (def *defUint32) alloc() error { return nil }
-func (def *defUint32) free()        {
+func (def *defUint32) free() {
 	def.arrHlp.close()
 }
 

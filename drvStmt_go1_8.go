@@ -26,17 +26,21 @@ func (ds *DrvStmt) ExecContext(ctx context.Context, values []driver.NamedValue) 
 		return nil, err
 	}
 
-	done := make(chan struct{}, 1)
+	done := make(chan struct{})
 	go func() {
 		select {
 		case <-done:
-			return
 		case <-ctx.Done():
-			if isCanceled(ctx.Err()) {
-				ds.stmt.RLock()
-				ses := ds.stmt.ses
-				ds.stmt.RUnlock()
-				ses.Break()
+			// select again to avoid race condition if both are done
+			select {
+			case <-done:
+			default:
+				if isCanceled(ctx.Err()) {
+					ds.stmt.RLock()
+					ses := ds.stmt.ses
+					ds.stmt.RUnlock()
+					ses.Break()
+				}
 			}
 		}
 	}()
@@ -44,10 +48,10 @@ func (ds *DrvStmt) ExecContext(ctx context.Context, values []driver.NamedValue) 
 	var err error
 	var res DrvExecResult
 	res.rowsAffected, res.lastInsertId, err = ds.stmt.exeC(ctx, params, false)
-	done <- struct{}{}
+	close(done)
 
 	if err != nil {
-		return nil, err
+		return nil, maybeBadConn(err)
 	}
 	if res.rowsAffected == 0 {
 		return driver.RowsAffected(0), nil
@@ -69,26 +73,30 @@ func (ds *DrvStmt) QueryContext(ctx context.Context, values []driver.NamedValue)
 	if err := ctx.Err(); err != nil {
 		return nil, err
 	}
-	done := make(chan struct{}, 1)
+	done := make(chan struct{})
 	go func() {
 		select {
 		case <-done:
-			return
 		case <-ctx.Done():
-			if isCanceled(ctx.Err()) {
-				ds.stmt.RLock()
-				ses := ds.stmt.ses
-				ds.stmt.RUnlock()
-				ses.Break()
+			// select again to avoid race condition if both are done
+			select {
+			case <-done:
+			default:
+				if isCanceled(ctx.Err()) {
+					ds.stmt.RLock()
+					ses := ds.stmt.ses
+					ds.stmt.RUnlock()
+					ses.Break()
+				}
 			}
 		}
 	}()
 
 	rset, err := ds.stmt.qryC(ctx, params)
-	done <- struct{}{}
+	close(done)
 
 	if err != nil {
-		return nil, err
+		return nil, maybeBadConn(err)
 	}
 	return &DrvQueryResult{rset: rset}, nil
 }

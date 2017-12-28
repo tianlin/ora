@@ -783,13 +783,24 @@ func (ses *Ses) Ping() (err error) {
 		C.OCI_DEFAULT) //ub4           mode );
 	ses.RUnlock()
 	if r == C.OCI_ERROR {
-		return errE(env.ociError())
+		err := errE(env.ociError())
+		if cd, ok := err.(interface {
+			Code() int
+		}); ok {
+			if cd.Code() == 1010 { // ORA-01010: invalid OCI operation for server < 10.2
+				return nil
+			}
+		}
+		return err
 	}
 	return nil
 }
 
 // Break stops the currently running OCI function.
 func (ses *Ses) Break() (err error) {
+	if ses == nil {
+		return nil
+	}
 	ses.log(_drv.Cfg().Log.Ses.Break)
 	err = ses.checkClosed()
 	if err != nil {
@@ -798,6 +809,9 @@ func (ses *Ses) Break() (err error) {
 	ses.Lock()
 	defer ses.Unlock()
 	env := ses.Env()
+	if ses.ocisvcctx == nil || env == nil || env.ocierr == nil {
+		return nil
+	}
 	if r := C.OCIBreak(unsafe.Pointer(ses.ocisvcctx), env.ocierr); r == C.OCI_ERROR {
 		return errE(env.ociError())
 	}

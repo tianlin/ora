@@ -113,6 +113,12 @@ gopkg.in:
 
 	go get github.com/tianlin/ora
 
+*WARNING*: If you have Oracle Instant Client 11.2, you'll need to add "=lnnz11"
+to the list of linked libs!
+Otherwise, you may encounter "undefined reference to `nzosSCSP_SetCertSelectionParams' "
+errors.
+Oracle Instant Client 12.1 does not need this.
+
 Data Types
 
 The ora package supports all built-in Oracle data types. The supported Oracle
@@ -710,7 +716,9 @@ nullable Go types by default:
 		SetClob(ora.OraS).
 		SetBlob(ora.OraBin).
 		SetRaw(ora.OraBin).
-		SetLongRaw(ora.OraBin)
+		SetLongRaw(ora.OraBin).
+		SetFetchLen(100).
+		SetLOBFetchLen(100)
 	sc.StmtCfg = cfg
 	srv, err := env.OpenSrv(sc)
 	// any new SesCfg.StmtCfg, StmtCfg.Cfg will receive this StmtCfg
@@ -758,6 +766,10 @@ don't have a unique Go type.
 The default for SELECTing [BC]LOB columns is a safe Bin or S,
 which means all the contents of the LOB is slurped into memory and returned
 as a []byte or string.
+
+The DefaultLOBFetchLen says LOBs are prefetched only a minimal way, to minimize
+extra memory usage - you can override this using
+`stmt.SetCfg(stmt.Cfg().SetLOBFetchLen(100))`.
 
 If you want more control, you can use ora.L in Prep, Qry or
 `ses.SetCfg(ses.Cfg().SetBlob(ora.L))`. But keep in mind that Oracle restricts

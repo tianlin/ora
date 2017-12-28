@@ -18,8 +18,9 @@ import (
 )
 
 const (
-	MaxFetchLen = 128
-	MinFetchLen = 8
+	MaxFetchLen        = 1024
+	DefaultFetchLen    = 128
+	DefaultLOBFetchLen = 8
 
 	byteWidth64 = 8
 	byteWidth32 = 4
@@ -136,6 +137,27 @@ func (rset *Rset) IsOpen() bool {
 	rset.RLock()
 	defer rset.RUnlock()
 	return rset.stmt != nil && rset.ocistmt != nil && rset.env != nil
+}
+
+// ColumnIndex returns a map of column names to their respective indexes.
+// Duplicate column names are not treated specially, the biggest index returned
+// for each column name.
+func (rset *Rset) ColumnIndex() map[string]int {
+	if rset == nil {
+		return nil
+	}
+	rset.RLock()
+	defer rset.RUnlock()
+
+	if rset.Columns == nil || len(rset.Columns) == 0 {
+		return nil
+	}
+
+	index := make(map[string]int, len(rset.Columns))
+	for i, c := range rset.Columns {
+		index[c.Name] = i
+	}
+	return index
 }
 
 // closeWithRemove releases allocated resources and removes the Rset from the
@@ -463,6 +485,7 @@ func (rset *Rset) open(stmt *Stmt, ocistmt *C.OCIStmt) error {
 	} else {
 		Row = Row[:len(Row)]
 	}
+
 	//fmt.Printf("rset.open (paramCount %v)\n", paramCount)
 
 	// create parameters for each select-list column
@@ -482,6 +505,7 @@ func (rset *Rset) open(stmt *Stmt, ocistmt *C.OCIStmt) error {
 	}()
 
 	var gct GoColumnType
+
 	for n := range defs {
 		// Create oci parameter handle; may be freed by OCIDescriptorFree()
 		// parameter position is 1-based
@@ -512,29 +536,41 @@ func (rset *Rset) open(stmt *Stmt, ocistmt *C.OCIStmt) error {
 		if err != nil {
 			return err
 		}
+
 		Columns[n] = Column{
 			Name:   C.GoStringN(columnName, C.int(colSize)),
 			Type:   params[n].typeCode,
 			Length: params[n].columnSize,
 		}
+
 		rset.logF(logCfg.Rset.OpenDefs, "%d. %s/%d", n+1, Columns[n].Name, params[n].typeCode)
 	}
 
-	fetchLen := MaxFetchLen
-Loop:
-	for _, param := range params {
-		switch param.typeCode {
-		// These can consume a lot of memory.
-		case C.SQLT_LNG, C.SQLT_BFILE, C.SQLT_BLOB, C.SQLT_CLOB, C.SQLT_LBI:
-			fetchLen = MinFetchLen
-			break Loop
+	fetchLen, lobFetchLen := DefaultFetchLen, DefaultLOBFetchLen
+	cfg := rset.stmt.Cfg()
+	if cfg.fetchLen > 0 {
+		fetchLen = cfg.fetchLen
+	}
+	if cfg.lobFetchLen > 0 {
+		lobFetchLen = cfg.lobFetchLen
+	}
+
+	if fetchLen != lobFetchLen {
+	Loop:
+		for _, param := range params {
+			switch param.typeCode {
+			// These can consume a lot of memory.
+			case C.SQLT_LNG, C.SQLT_BFILE, C.SQLT_BLOB, C.SQLT_CLOB, C.SQLT_LBI:
+				fetchLen = lobFetchLen
+				break Loop
+			}
 		}
 	}
+	//rset.logF(true, "fetchLen=%d", fetchLen)
 
 	rset.defs, rset.Columns, rset.Row = defs, Columns, Row
 	rset.fetchLen = fetchLen
 
-	cfg := rset.stmt.Cfg()
 	//rset.logF(logCfg.Rset.Open, "cfg=%#v", cfg)
 	stmt.RLock()
 	gcts := stmt.gcts

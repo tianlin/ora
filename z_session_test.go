@@ -12,7 +12,66 @@ import (
 	"testing"
 
 	"github.com/tianlin/ora"
+	"github.com/pkg/errors"
 )
+
+func TestIssue233(t *testing.T) {
+	session, err := testSesPool.Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	session.PrepAndExe("DROP TABLE test_lob")
+	for _, qry := range []string{
+		"create table test_lob (c clob)",
+		`begin
+	  insert into test_lob values ('Hello');
+	  insert into test_lob values ('world!');
+	  commit;
+	end;`,
+		`CREATE OR REPLACE PROCEDURE sp_lob_test(o_cur_lob OUT SYS_REFCURSOR,
+                                            o_cur_date OUT SYS_REFCURSOR) AS
+BEGIN
+  OPEN o_cur_lob FOR
+    SELECT * FROM test_lob;
+
+  OPEN o_cur_date FOR
+    select sysdate from dual;
+end sp_lob_test;`,
+	} {
+		if _, err = session.PrepAndExe(qry); err != nil {
+			t.Fatal(errors.Wrap(err, qry))
+		}
+	}
+	session.Close()
+
+	qry := "call sp_lob_test(:o_cur_lob, :o_cur_date)"
+	for i := 0; i < 1000000; i++ {
+		session, err := testSesPool.Get()
+		if err != nil {
+			t.Fatal(err)
+		}
+		stmt, err := session.Prep(qry)
+		if err != nil {
+			t.Fatal(errors.Wrap(err, qry))
+
+		}
+		c1 := &ora.Rset{}
+		c2 := &ora.Rset{}
+		_, err = stmt.Exe(c1, c2)
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Logf("iteration #%d\n", i)
+		fmt.Println(c1)
+		c1.Exhaust()
+		fmt.Println(c2)
+		c2.Exhaust()
+
+		stmt.Close()
+		session.Close()
+	}
+}
 
 func Test_open_cursors(t *testing.T) {
 	t.Parallel()
@@ -39,11 +98,6 @@ func Test_open_cursors(t *testing.T) {
 	}
 	defer ses.Close()
 
-	qry := "SELECT VALUE FROM V$MYSTAT WHERE STATISTIC#=5"
-	rset, err := ses.PrepAndQry(qry)
-	if err != nil {
-		t.Skipf("%q: %v", qry, err)
-	}
 	toNum := func(a interface{}) int {
 		switch x := a.(type) {
 		case int64:
@@ -59,8 +113,24 @@ func Test_open_cursors(t *testing.T) {
 		}
 	}
 
-	before := toNum(rset.NextRow()[0])
-	rounds := 100
+	//qry := `SELECT VALUE FROM V$MYSTAT WHERE STATISTIC#=5`
+	qry := `SELECT count(0) FROM v$open_cursor WHERE user_name = user AND cursor_type = 'OPEN'`
+	//qry := `SELECT VALUE FROM v$sesstat WHERE statistic#=5 AND SID = sys_context('USERENV', 'SID')`
+	countStmt, err := ses.Prep(qry)
+	if err != nil {
+		t.Fatal(errors.Wrap(err, qry))
+	}
+	defer countStmt.Close()
+	count := func() int {
+		rset, err := countStmt.Qry(qry)
+		if err != nil {
+			t.Skipf("%q: %v", qry, err)
+		}
+		return toNum(rset.NextRow()[0])
+	}
+
+	before := count()
+	rounds := 2000
 	if cgocheck() != 0 {
 		rounds = 10
 	}
@@ -71,6 +141,7 @@ func Test_open_cursors(t *testing.T) {
 				t.Fatal(err)
 			}
 			defer stmt.Close()
+			//t.Logf("%d. in: %d", i, count())
 			rset, err := stmt.Qry()
 			if err != nil {
 				t.Errorf("SELECT: %v", err)
@@ -80,14 +151,10 @@ func Test_open_cursors(t *testing.T) {
 			for rset.Next() {
 				j++
 			}
-			//t.Logf("%d objects, error=%v", j, rset.Err())
+			t.Logf("%d objects, error=%v", j, rset.Err())
 		}()
 	}
-	rset, err = ses.PrepAndQry("SELECT VALUE FROM V$MYSTAT WHERE STATISTIC#=5")
-	if err != nil {
-		t.Fatal(err)
-	}
-	after := toNum(rset.NextRow()[0])
+	after := count()
 	if after-before >= rounds {
 		t.Errorf("before=%v after=%v, awaited less than %d increment!", before, after, rounds)
 		return
@@ -120,6 +187,8 @@ func TestSession_Tx_StartCommit(t *testing.T) {
 	t.Parallel()
 	ses, err := testSesPool.Get()
 	testErr(err, t)
+	defer ses.Close()
+
 	tableName, err := createTable(1, numberP38S0, ses)
 	testErr(err, t)
 	defer dropTable(tableName, ses, t)
@@ -301,6 +370,9 @@ func BenchmarkSession_PrepAndExe_Insert_WithoutCGOCheck(b *testing.B) {
 }
 
 func benchmarkSession_PrepAndExe_Insert(b *testing.B) {
+	testSes := getSes(b)
+	defer testSes.Close()
+
 	tableName, err := createTable(1, numberP38S0, testSes)
 	testErr(err, b)
 	defer dropTable(tableName, testSes, b)

@@ -16,6 +16,7 @@ type arrHlp struct {
 	nullInds   []C.sb2
 	alen       []C.ACTUAL_LENGTH_TYPE
 	rcode      []C.ub2
+	allocated  []bool
 	isAssocArr bool
 }
 
@@ -26,7 +27,7 @@ type ociDef struct {
 }
 
 func (d *ociDef) defineByPos(position int, valuep unsafe.Pointer, valueSize int, dty int) error {
-	d.ensureFetchLength(MaxFetchLen)
+	d.ensureFetchLength(d.rset.stmt.Cfg().FetchLen())
 	// If you omit the rlenp parameter of OCIDefineByPos(), returned values are blank-padded to the buffer length, and NULLs are returned as a string of blank characters. If rlenp is included, returned values are not blank-padded. Instead, their actual lengths are returned in the rlenp parameter.
 	if r := C.OCIDEFINEBYPOS(
 		d.rset.ocistmt,    //OCIStmt     *stmtp,
@@ -57,14 +58,26 @@ func (d *ociDef) defineByPos(position int, valuep unsafe.Pointer, valueSize int,
 }
 
 var (
-	sb2Pool = sync.Pool{New:func() interface{}{return []C.sb2{}}}
-	ub2Pool = sync.Pool{New:func() interface{}{return []C.ub2{}}}
-	alenPool = sync.Pool{New:func() interface{}{return []C.ACTUAL_LENGTH_TYPE{}}}
+	sb2Pool  = sync.Pool{New: func() interface{} { return []C.sb2{} }}
+	ub2Pool  = sync.Pool{New: func() interface{} { return []C.ub2{} }}
+	alenPool = sync.Pool{New: func() interface{} { return []C.ACTUAL_LENGTH_TYPE{} }}
 )
 
+func (d *arrHlp) ensureAllocatedLength(length int) {
+	if cap(d.allocated) < length {
+		d.allocated = make([]bool, length)
+		return
+	}
+	d.allocated = d.allocated[:length]
+	for i := range d.allocated {
+		d.allocated[i] = false
+	}
+}
+
 func (a *arrHlp) ensureFetchLength(length int) {
-	a.Lock()
-	defer a.Unlock()
+	if length <= 0 || length >= MaxFetchLen {
+		length = MaxFetchLen
+	}
 	if cap(a.nullInds) >= length {
 		a.nullInds = a.nullInds[:length]
 	} else {
@@ -102,8 +115,6 @@ func (a *arrHlp) ensureBindArrLength(
 	length, capacity *int,
 	isAssocArray bool,
 ) (iterations uint32, curlenp *C.ub4, needsAppend bool) {
-	a.Lock()
-	defer a.Unlock()
 	a.curlen = C.ub4(*length) // the real length, not L!
 	if isAssocArray {
 		// for PL/SQL associative arrays
@@ -144,7 +155,7 @@ func (a *arrHlp) ensureBindArrLength(
 	if cap(a.rcode) >= C {
 		a.rcode = a.rcode[:L]
 	} else {
-		if a.rcode = ub2Pool.Get().([]C.ub2);cap(a.rcode) < C {
+		if a.rcode = ub2Pool.Get().([]C.ub2); cap(a.rcode) < C {
 			a.rcode = make([]C.ub2, L, C)
 		} else {
 			a.rcode = a.rcode[:L]
@@ -167,8 +178,6 @@ func (a *arrHlp) close() error {
 	if a == nil {
 		return nil
 	}
-	a.Lock()
-	defer a.Unlock()
 	if a.isAssocArr {
 		return nil
 	}
@@ -183,6 +192,9 @@ func (a *arrHlp) close() error {
 	if a.rcode != nil {
 		ub2Pool.Put(a.rcode)
 		a.rcode = nil
+	}
+	if a.allocated != nil {
+		a.allocated = nil
 	}
 	return nil
 }

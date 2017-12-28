@@ -17,6 +17,7 @@ type bndUint16Slice struct {
 	ociNumbers []C.OCINumber
 	values     *[]Uint16
 	ints       *[]uint16
+	isOra      bool
 	arrHlp
 }
 
@@ -48,7 +49,7 @@ func (bnd *bndUint16Slice) bindOra(values *[]Uint16, position namedPos, stmt *St
 		}
 	}
 	*bnd.ints = ints
-
+	bnd.isOra = true
 	return bnd.bind(bnd.ints, position, stmt, isAssocArray)
 }
 
@@ -81,6 +82,11 @@ func (bnd *bndUint16Slice) bind(values *[]uint16, position namedPos, stmt *Stmt,
 			C.ub4(len(V)),
 		); r == C.OCI_ERROR {
 			return iterations, bnd.stmt.ses.srv.env.ociError()
+		}
+	}
+	if !bnd.isOra {
+		for i := range bnd.nullInds {
+			bnd.nullInds[i] = 0
 		}
 	}
 
@@ -172,6 +178,7 @@ func (bnd *bndUint16Slice) close() (err error) {
 	bnd.ocibnd = nil
 	bnd.values = nil
 	bnd.ints = nil
+	bnd.isOra = false
 	bnd.arrHlp.close()
 	stmt.putBnd(bndIdxUint16Slice, bnd)
 	return nil

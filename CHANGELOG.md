@@ -2,7 +2,24 @@
 
 ## master ##
 
+## v4.1.15 ##
+
+## v4.1.14 ##
+  * Allow specifying FetchLen and LOBFetchLen.
+  * Add Rset.ColumnIndex helper function.
+
+## v4.1.13 ##
+  * Fix bindStirngSlice error of nullInds reuse without reset.
+
+## v4.1.12 ##
+  * Do not free ocistmt - panics (issue #222).
+
+## v4.1.11 ##
+  * Return ErrBadConn from ExecContext, QueryContext if the culprit is bad conn.
+    Fixes #205.
+
 ## v4.1.10 ##
+  * Fix missing OCI handle frees on error (issue #207).
 
 ## v4.1.9 ##
   * Fix context deadline issue 192.
